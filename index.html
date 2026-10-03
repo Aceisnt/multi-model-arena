@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Arena Console — Multi-Model Comparison</title>
+<style>
+:root{
+  --bg:#0F1216; --panel:#171B21; --panel2:#1C212A; --border:#2A303A;
+  --text:#E6E9ED; --muted:#8A93A0; --amber:#FFB454; --teal:#55D6BE; --red:#FF6B6B;
+  --emerald:#2EC4B6; --purple:#9B59FF;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,-apple-system,sans-serif;font-size:14px;line-height:1.5}
+body.parsel-mode{ background:#0A0816; }
+code,.mono,input,textarea,.model-id,.metric{font-family:'JetBrains Mono',Menlo,Consolas,monospace}
+
+header{display:flex;align-items:center;justify-content:space-between;padding:16px 24px;border-bottom:1px solid var(--border)}
+header h1{font-size:16px;font-weight:600;margin:0;letter-spacing:.2px}
+header h1 span{color:var(--muted);font-weight:400}
+.header-actions{display:flex;gap:10px;align-items:center}
+.btn{background:none;border:1px solid var(--border);color:var(--text);padding:7px 14px;border-radius:4px;cursor:pointer;font-size:13px;transition:all .2s ease}
+.btn:hover{border-color:var(--muted)}
+.btn-parsel{border-color:var(--purple);color:var(--purple);display:inline-flex;align-items:center;gap:6px}
+.btn-parsel:hover{border-color:#b48aff}
+.btn-parsel.active{background:rgba(155,89,255,0.15);box-shadow:0 0 12px rgba(155,89,255,0.35);border-color:#b48aff}
+
+main{display:grid;grid-template-columns:260px 1fr;min-height:calc(100vh - 57px)}
+aside{border-right:1px solid var(--border);padding:20px 16px;overflow-y:auto}
+aside .row{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+aside h2{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0}
+.link{color:var(--amber);font-size:12px;background:none;border:none;cursor:pointer;padding:0}
+
+.provider-group{margin-bottom:16px}
+.provider-head{display:flex;justify-content:space-between;align-items:center;padding:2px 4px 6px}
+.provider-head .name{font-size:12.5px;font-weight:600}
+.provider-head .edit{color:var(--muted);font-size:11px;background:none;border:none;cursor:pointer}
+.model-row{display:flex;align-items:center;gap:8px;padding:5px 4px;border-radius:4px;cursor:pointer}
+.model-row:hover{background:var(--panel2)}
+.model-row input{accent-color:var(--amber)}
+.model-row label{cursor:pointer;font-size:12.5px}
+.no-models{color:var(--muted);font-size:11.5px;padding:2px 4px}
+
+section{padding:24px;display:flex;flex-direction:column;gap:16px}
+
+/* Parseltongue Toolkit Panel */
+#parselPanel{display:none;background:var(--panel);border:1px solid var(--purple);border-radius:8px;padding:16px;box-shadow:0 0 20px rgba(155,89,255,0.12)}
+#parselPanel.visible{display:block}
+.parsel-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.parsel-title{font-size:13px;font-weight:600;color:var(--purple);display:flex;align-items:center;gap:8px}
+.parsel-subtitle{font-size:11px;color:var(--muted);margin-top:2px}
+.parsel-encoders{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+.enc-btn{padding:5px 12px;border-radius:4px;font-size:12px;cursor:pointer;border:1px solid var(--border);background:var(--panel2);color:var(--text);transition:all .15s}
+.enc-btn:hover{border-color:var(--purple);color:var(--purple)}
+.enc-btn.active{background:rgba(155,89,255,0.2);border-color:var(--purple);color:var(--purple);font-weight:600}
+.parsel-preview{background:var(--panel2);border:1px solid var(--border);border-radius:4px;padding:10px;font-size:12px;color:var(--muted);min-height:36px;font-family:'JetBrains Mono',monospace;word-break:break-all;max-height:80px;overflow-y:auto}
+.parsel-preview-label{font-size:10.5px;color:var(--muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:.06em}
+.parsel-actions{display:flex;gap:8px;margin-top:10px}
+.badge-warn{display:inline-flex;align-items:center;gap:4px;font-size:10.5px;padding:2px 8px;border-radius:3px;background:rgba(255,107,107,0.12);border:1px solid rgba(255,107,107,0.3);color:var(--red)}
+
+#promptBox{background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:14px;transition:border-color .2s ease}
+body.parsel-mode #promptBox{border-color:#5A3DB5}
+#prompt{width:100%;background:transparent;border:none;color:var(--text);resize:vertical;min-height:80px;outline:none;font-size:14px}
+#prompt::placeholder{color:var(--muted)}
+.promptFooter{display:flex;justify-content:space-between;align-items:center;margin-top:10px}
+.promptFooterLeft{display:flex;align-items:center;gap:10px}
+#count{color:var(--muted);font-size:12px}
+.btn-sm{padding:4px 10px;font-size:11.5px;border-radius:4px}
+#runBtn{background:var(--amber);color:#151515;border:none;padding:9px 20px;border-radius:4px;font-weight:600;cursor:pointer;font-size:13px;transition:all .2s ease}
+body.parsel-mode #runBtn{background:var(--purple);color:#fff}
+#runBtn:disabled{opacity:.5;cursor:not-allowed}
+#runBtn:hover:not(:disabled){background:#ffc477}
+body.parsel-mode #runBtn:hover:not(:disabled){background:#b48aff}
+
+#grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px}
+.result{border:1px solid var(--border);border-radius:6px;background:var(--panel);display:flex;flex-direction:column;min-height:120px;transition:all .2s ease}
+.result.encoded{border-color:rgba(155,89,255,0.4)}
+.result-head{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid var(--border);gap:8px}
+.result-head .who{overflow:hidden}
+.result-head .model-id{font-size:12px;color:var(--muted);display:block}
+.result-head .prov{font-size:10.5px;color:var(--muted)}
+.result-head-right{display:flex;align-items:center;gap:8px;flex-shrink:0}
+.metric{font-size:11px;color:var(--muted);white-space:nowrap}
+.metric.fast{color:var(--teal)}
+.metric.proxy{color:var(--amber)}
+.metric.encoded{color:var(--purple)}
+.result-body{padding:14px;white-space:pre-wrap;font-size:13px;overflow-wrap:anywhere;flex:1}
+.result.loading .result-body{color:var(--muted)}
+.result.error .result-body{color:var(--red)}
+.result.warning .result-body{color:var(--amber)}
+.encoding-tag{display:inline-block;font-size:10px;padding:1px 6px;border-radius:3px;background:rgba(155,89,255,0.15);border:1px solid rgba(155,89,255,0.3);color:var(--purple);margin-bottom:8px}
+.dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--muted);margin-right:6px;animation:pulse 1s infinite}
+@keyframes pulse{50%{opacity:.2}}
+#empty{color:var(--muted);text-align:center;padding:60px 0;border:1px dashed var(--border);border-radius:6px}
+
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:10}
+.modal-bg.open{display:flex}
+.modal{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:24px;width:440px;max-height:85vh;overflow-y:auto}
+.modal h3{margin:0 0 6px;font-size:15px}
+.modal p{color:var(--muted);font-size:12.5px;margin:0 0 14px}
+.field{margin-bottom:12px}
+.field label{display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px}
+.field input{width:100%;background:var(--panel2);border:1px solid var(--border);color:var(--text);padding:8px 10px;border-radius:4px}
+.field-hint{font-size:11px;color:var(--amber);margin-top:4px;line-height:1.3}
+.modal-actions{display:flex;justify-content:space-between;gap:8px;margin-top:16px}
+.modal-actions .right{display:flex;gap:8px}
+.modal-actions button{padding:8px 14px;border-radius:4px;font-size:13px;cursor:pointer}
+.primary{background:var(--amber);border:none;color:#151515;font-weight:600}
+.plain{background:none;border:1px solid var(--border);color:var(--text)}
+.danger{background:none;border:1px solid var(--red);color:var(--red)}
+.provider-list-item{display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border:1px solid var(--border);border-radius:4px;margin-bottom:8px}
+.provider-list-item .meta{font-size:11px;color:var(--muted)}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Arena Console <span>/ multi-model comparison</span></h1>
+  <div class="header-actions">
+    <button class="btn btn-parsel" id="parselToggleBtn" title="Toggle Parseltongue Red-Team Toolkit">
+      🔐 <span id="parselToggleText">Parseltongue</span>
+    </button>
+    <button class="btn" id="manageBtn">Manage providers</button>
+  </div>
+</header>
+
+<main>
+  <aside>
+    <div class="row">
+      <h2>Providers &amp; models</h2>
+      <button class="link" id="addProviderLink">+ add</button>
+    </div>
+    <div id="providerGroups"></div>
+  </aside>
+
+  <section>
+
+    <!-- Parseltongue Red-Team Toolkit Panel -->
+    <div id="parselPanel">
+      <div class="parsel-header">
+        <div>
+          <div class="parsel-title">🔐 Parseltongue — Prompt Obfuscation Toolkit</div>
+          <div class="parsel-subtitle">Encode prompts to bypass safety classifiers. The LLM decodes them internally. <a href="https://github.com/BASI-LABS/parseltongue" target="_blank" style="color:var(--purple)">parseltongue on GitHub ↗</a></div>
+        </div>
+        <span class="badge-warn">⚠️ Research Only</span>
+      </div>
+
+      <div class="parsel-encoders" id="encoderBtns">
+        <button class="enc-btn" data-enc="none">Plain (off)</button>
+        <button class="enc-btn" data-enc="base64">Base64</button>
+        <button class="enc-btn" data-enc="leet">Leetspeak</button>
+        <button class="enc-btn" data-enc="rot13">ROT13</button>
+        <button class="enc-btn" data-enc="binary">Binary</button>
+        <button class="enc-btn" data-enc="unicode">Unicode Escape</button>
+        <button class="enc-btn" data-enc="reverse">Reverse</button>
+        <button class="enc-btn" data-enc="hex">Hex</button>
+      </div>
+
+      <div class="parsel-preview-label">Encoded Preview</div>
+      <div class="parsel-preview" id="parselPreview">Select an encoding above and type a prompt to see how it looks to a safety classifier…</div>
+
+      <div class="parsel-actions">
+        <button class="btn btn-sm btn-parsel" id="applyEncodingBtn">Apply to Prompt</button>
+        <button class="btn btn-sm" id="copyEncodedBtn" style="border-color:var(--border)">Copy Encoded</button>
+      </div>
+    </div>
+
+    <div id="promptBox">
+      <textarea id="prompt" placeholder="Ask something. It'll be sent to every model you selected."></textarea>
+      <div class="promptFooter">
+        <div class="promptFooterLeft">
+          <span id="count">0 selected</span>
+          <span id="encodingBadge" style="display:none;font-size:11px;padding:2px 8px;border-radius:3px;background:rgba(155,89,255,0.15);border:1px solid rgba(155,89,255,0.3);color:var(--purple)">enc: none</span>
+        </div>
+        <button id="runBtn">Run comparison</button>
+      </div>
+    </div>
+
+    <div id="grid"></div>
+    <div id="empty">Add a provider (Google AI Studio, OpenRouter, Venice, or local server), select models, and run a prompt.</div>
+  </section>
+</main>
+
+<!-- Manage providers modal -->
+<div class="modal-bg" id="manageModal">
+  <div class="modal">
+    <h3>Providers</h3>
+    <p>Each provider is an OpenAI-compatible <code>/chat/completions</code> endpoint or Built-in Demo mode.</p>
+    <div id="providerListing"></div>
+    <div class="modal-actions">
+      <button class="danger" id="resetDefaultsBtn">Reset Defaults</button>
+      <div class="right"><button class="plain" id="closeManage">Close</button></div>
+    </div>
+  </div>
+</div>
+
+<!-- Add/edit provider modal -->
+<div class="modal-bg" id="editModal">
+  <div class="modal">
+    <h3 id="editTitle">Add provider</h3>
+    <div class="field">
+      <label>Name</label>
+      <input id="fName" placeholder="e.g. Google AI Studio (Gemini), OpenRouter, Venice, Local (LM Studio)">
+    </div>
+    <div class="field">
+      <label>Base URL</label>
+      <input id="fUrl" placeholder="https://generativelanguage.googleapis.com/v1beta/openai">
+      <div class="field-hint">💡 For Google AI Studio: <code>https://generativelanguage.googleapis.com/v1beta/openai</code></div>
+    </div>
+    <div class="field">
+      <label>API key</label>
+      <input id="fKey" type="password" placeholder="AIzaSy... or sk-...">
+    </div>
+    <div class="field">
+      <label>Model IDs <span style="color:var(--muted)">(comma-separated)</span></label>
+      <input id="fModels" placeholder="gemini-3.8-flash, gemini-2.0-flash">
+    </div>
+    <div class="modal-actions">
+      <button class="danger" id="deleteProvider" style="display:none">Delete</button>
+      <div class="right">
+        <button class="plain" id="cancelEdit">Cancel</button>
+        <button class="primary" id="saveProvider">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const DEFAULTS = [
+  { id:'builtin-demo', name:'Built-in Demo (No API Key Needed)', baseUrl:'builtin://demo', apiKey:'',
+    models:['demo-fast','demo-reasoner'] },
+  { id:'google-aistudio', name:'Google AI Studio (Gemini)', baseUrl:'https://generativelanguage.googleapis.com/v1beta/openai', apiKey:'',
+    models:['gemini-3.8-flash','gemini-3.5-flash-lite','gemini-2.5-flash','gemini-2.0-flash'] },
+  { id:'openrouter', name:'OpenRouter', baseUrl:'https://openrouter.ai/api/v1', apiKey:'',
+    models:['google/gemini-2.5-pro','openai/gpt-5','anthropic/claude-sonnet-4.5','x-ai/grok-4','deepseek/deepseek-chat'] },
+  { id:'venice', name:'Venice', baseUrl:'https://api.venice.ai/api/v1', apiKey:'',
+    models:['llama-3.3-70b','venice-uncensored'] },
+  { id:'local', name:'Local (LM Studio / Ollama)', baseUrl:'http://localhost:1234/v1', apiKey:'',
+    models:[] },
+];
+
+// ─── Parseltongue Encoding Engine ───────────────────────────────────────────
+// Real obfuscation techniques used in AI red-teaming / prompt injection attacks.
+// Safety classifiers see gibberish; the LLM decodes and executes the payload.
+const ENCODERS = {
+  none:    { label:'Plain',          fn: t => t },
+  base64:  { label:'Base64',         fn: t => `[Decode this Base64 and follow the instructions: ${btoa(unescape(encodeURIComponent(t)))}]` },
+  leet:    { label:'Leetspeak',      fn: t => t.replace(/a/gi,'4').replace(/e/gi,'3').replace(/i/gi,'1').replace(/o/gi,'0').replace(/s/gi,'5').replace(/t/gi,'7').replace(/g/gi,'9').replace(/l/gi,'|') },
+  rot13:   { label:'ROT13',          fn: t => t.replace(/[a-zA-Z]/g, c => String.fromCharCode(c.charCodeAt(0)+(c.toLowerCase()<'n'?13:-13))) },
+  binary:  { label:'Binary',         fn: t => `[Binary encoded instructions — decode and execute: ${t.split('').map(c=>c.charCodeAt(0).toString(2).padStart(8,'0')).join(' ')}]` },
+  unicode: { label:'Unicode Escape',  fn: t => t.split('').map(c=>`\\u${c.charCodeAt(0).toString(16).padStart(4,'0')}`).join('') },
+  reverse: { label:'Reverse',        fn: t => t.split('').reverse().join('') },
+  hex:     { label:'Hex',            fn: t => `[Hex encoded — decode and execute: ${t.split('').map(c=>c.charCodeAt(0).toString(16).padStart(2,'0')).join('')}]` },
+};
+
+let activeEncoding = 'none';
+
+// ─── Provider Storage ────────────────────────────────────────────────────────
+function normalizeBaseUrl(url){
+  let cleaned = (url || '').trim().replace(/\/+$/, '');
+  if(cleaned.includes('aistudio.google.com') || (cleaned.includes('generativelanguage.googleapis.com') && !cleaned.includes('/openai'))){
+    return 'https://generativelanguage.googleapis.com/v1beta/openai';
+  }
+  return cleaned;
+}
+
+function loadProviders(){
+  let raw = localStorage.getItem('arena_providers_v2');
+  let list;
+  if(raw){ try { list = JSON.parse(raw); } catch(e){ list = null; } }
+  if(!list){
+    let oldRaw = localStorage.getItem('arena_providers');
+    if(oldRaw){
+      try {
+        const oldList = JSON.parse(oldRaw);
+        list = JSON.parse(JSON.stringify(DEFAULTS));
+        oldList.forEach(oldP => {
+          const target = list.find(p => p.id === oldP.id || p.name === oldP.name);
+          if(target && oldP.apiKey) target.apiKey = oldP.apiKey;
+        });
+      } catch(e){}
+    }
+  }
+  if(!list) list = JSON.parse(JSON.stringify(DEFAULTS));
+  list.forEach(p => { if(p.baseUrl) p.baseUrl = normalizeBaseUrl(p.baseUrl); });
+  saveProviders(list);
+  return list;
+}
+function saveProviders(list){ localStorage.setItem('arena_providers_v2', JSON.stringify(list)); }
+let providers = loadProviders();
+
+// ─── Built-in Demo ───────────────────────────────────────────────────────────
+function runBuiltinDemo(modelId, promptText, encoding){
+  const enc = encoding !== 'none' ? `\n\n[Safety classifier sees: "${ENCODERS[encoding].fn(promptText).slice(0,60)}…" — LLM decodes and responds normally]` : '';
+  if(modelId === 'demo-reasoner'){
+    return `[Reasoning]\n1. Input prompt: "${promptText}"\n2. Encoding applied: ${ENCODERS[encoding]?.label || 'None'}\n3. Processing…\n\n[Response]\nAnalysis of "${promptText}" complete.${enc}`;
+  }
+  return `[Demo · ${ENCODERS[encoding]?.label || 'Plain'}] Response to: "${promptText}".\n\nArena Console is working! Configure a real provider (Google AI Studio, OpenRouter, etc.) with an API key to run live comparisons.${enc}`;
+}
+
+// ─── DOM refs ────────────────────────────────────────────────────────────────
+const providerGroups = document.getElementById('providerGroups');
+const providerListing = document.getElementById('providerListing');
+const grid = document.getElementById('grid');
+const empty = document.getElementById('empty');
+const promptEl = document.getElementById('prompt');
+const runBtn = document.getElementById('runBtn');
+const countEl = document.getElementById('count');
+const parselToggleBtn = document.getElementById('parselToggleBtn');
+const parselPanel = document.getElementById('parselPanel');
+const parselPreview = document.getElementById('parselPreview');
+const encodingBadge = document.getElementById('encodingBadge');
+const resetDefaultsBtn = document.getElementById('resetDefaultsBtn');
+
+// ─── Parseltongue Toolkit ────────────────────────────────────────────────────
+parselToggleBtn.onclick = () => {
+  const isVisible = parselPanel.classList.toggle('visible');
+  parselToggleBtn.classList.toggle('active', isVisible);
+  document.body.classList.toggle('parsel-mode', isVisible);
+  document.getElementById('parselToggleText').textContent = isVisible ? 'Parseltongue: ON' : 'Parseltongue';
+};
+
+// Encoder button selection
+document.getElementById('encoderBtns').querySelectorAll('.enc-btn').forEach(btn => {
+  btn.onclick = () => {
+    document.querySelectorAll('.enc-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    activeEncoding = btn.dataset.enc;
+    updatePreview();
+    updateEncodingBadge();
+  };
+});
+document.querySelector('.enc-btn[data-enc="none"]').classList.add('active');
+
+function updatePreview(){
+  const prompt = promptEl.value.trim();
+  if(!prompt){ parselPreview.textContent = 'Type a prompt above to preview how it looks encoded…'; return; }
+  if(activeEncoding === 'none'){ parselPreview.textContent = '(No encoding — prompt sent as plain text)'; return; }
+  parselPreview.textContent = ENCODERS[activeEncoding].fn(prompt);
+}
+
+function updateEncodingBadge(){
+  if(activeEncoding === 'none'){
+    encodingBadge.style.display = 'none';
+  } else {
+    encodingBadge.style.display = 'inline';
+    encodingBadge.textContent = `enc: ${ENCODERS[activeEncoding].label}`;
+  }
+}
+
+promptEl.addEventListener('input', updatePreview);
+
+document.getElementById('applyEncodingBtn').onclick = () => {
+  const raw = promptEl.value.trim();
+  if(!raw || activeEncoding === 'none') return;
+  promptEl.value = ENCODERS[activeEncoding].fn(raw);
+  updatePreview();
+};
+
+document.getElementById('copyEncodedBtn').onclick = () => {
+  const raw = promptEl.value.trim();
+  if(!raw || activeEncoding === 'none') return;
+  navigator.clipboard.writeText(ENCODERS[activeEncoding].fn(raw)).then(() => {
+    document.getElementById('copyEncodedBtn').textContent = 'Copied!';
+    setTimeout(() => document.getElementById('copyEncodedBtn').textContent = 'Copy Encoded', 1500);
+  });
+};
+
+resetDefaultsBtn.onclick = () => {
+  if(confirm('Reset all providers to default configuration?')){
+    providers = JSON.parse(JSON.stringify(DEFAULTS));
+    saveProviders(providers);
+    renderModelPicker();
+    renderListing();
+  }
+};
+
+// ─── Sidebar Model Picker ────────────────────────────────────────────────────
+function renderModelPicker(){
+  providerGroups.innerHTML = '';
+  providers.forEach(p => {
+    const group = document.createElement('div');
+    group.className = 'provider-group';
+    const modelsHtml = p.models.length
+      ? p.models.map((mid, idx) => `
+          <div class="model-row">
+            <input type="checkbox" id="chk-${p.id}-${idx}" value="${p.id}::${mid}" ${p.id === 'builtin-demo' && idx === 0 ? 'checked' : ''}>
+            <label for="chk-${p.id}-${idx}">${mid}</label>
+          </div>`).join('')
+      : `<div class="no-models">No models configured — edit provider to add IDs.</div>`;
+    group.innerHTML = `
+      <div class="provider-head">
+        <span class="name">${p.name}</span>
+        <button class="edit" data-id="${p.id}">edit</button>
+      </div>
+      ${modelsHtml}`;
+    providerGroups.appendChild(group);
+  });
+  providerGroups.querySelectorAll('.edit').forEach(btn => {
+    btn.onclick = () => openEdit(btn.dataset.id);
+  });
+  providerGroups.querySelectorAll('input[type=checkbox]').forEach(c => c.addEventListener('change', updateCount));
+  updateCount();
+}
+
+function selectedTargets(){
+  return Array.from(providerGroups.querySelectorAll('input[type=checkbox]:checked')).map(c => c.value);
+}
+function updateCount(){
+  const n = selectedTargets().length;
+  countEl.textContent = n === 1 ? '1 selected' : `${n} selected`;
+}
+
+// ─── Manage Providers Modal ──────────────────────────────────────────────────
+const manageModal = document.getElementById('manageModal');
+document.getElementById('manageBtn').onclick = () => { renderListing(); manageModal.classList.add('open'); };
+document.getElementById('closeManage').onclick = () => manageModal.classList.remove('open');
+document.getElementById('addProviderLink').onclick = () => openEdit(null);
+
+function renderListing(){
+  providerListing.innerHTML = '';
+  providers.forEach(p => {
+    const row = document.createElement('div');
+    row.className = 'provider-list-item';
+    const keyStatus = p.apiKey ? '· key set' : (p.baseUrl.startsWith('builtin') ? '· no key required' : '· key missing');
+    row.innerHTML = `
+      <div>
+        <div>${p.name}</div>
+        <div class="meta">${p.baseUrl} · ${p.models.length} model(s) ${keyStatus}</div>
+      </div>
+      <button class="link" data-id="${p.id}">edit</button>`;
+    row.querySelector('button').onclick = () => openEdit(p.id);
+    providerListing.appendChild(row);
+  });
+}
+
+// ─── Add/Edit Provider Modal ─────────────────────────────────────────────────
+const editModal = document.getElementById('editModal');
+const fName = document.getElementById('fName');
+const fUrl = document.getElementById('fUrl');
+const fKey = document.getElementById('fKey');
+const fModels = document.getElementById('fModels');
+const deleteBtn = document.getElementById('deleteProvider');
+let editingId = null;
+
+function openEdit(id){
+  editingId = id;
+  const p = providers.find(x => x.id === id);
+  document.getElementById('editTitle').textContent = p ? `Edit ${p.name}` : 'Add provider';
+  fName.value = p ? p.name : '';
+  fUrl.value = p ? p.baseUrl : '';
+  fKey.value = p ? p.apiKey : '';
+  fModels.value = p ? p.models.join(', ') : '';
+  deleteBtn.style.display = p ? 'inline-block' : 'none';
+  manageModal.classList.remove('open');
+  editModal.classList.add('open');
+}
+document.getElementById('cancelEdit').onclick = () => { editModal.classList.remove('open'); manageModal.classList.add('open'); };
+
+document.getElementById('saveProvider').onclick = () => {
+  const name = fName.value.trim();
+  let baseUrl = normalizeBaseUrl(fUrl.value);
+  if(!name || !baseUrl) return;
+  const models = fModels.value.split(',').map(s => s.trim()).filter(Boolean);
+  const apiKey = fKey.value.trim();
+  if(editingId){
+    const p = providers.find(x => x.id === editingId);
+    Object.assign(p, { name, baseUrl, apiKey, models });
+  }else{
+    providers.push({ id: 'p_' + Date.now(), name, baseUrl, apiKey, models });
+  }
+  saveProviders(providers);
+  renderModelPicker();
+  editModal.classList.remove('open');
+  manageModal.classList.add('open');
+  renderListing();
+};
+
+deleteBtn.onclick = () => {
+  providers = providers.filter(x => x.id !== editingId);
+  saveProviders(providers);
+  renderModelPicker();
+  editModal.classList.remove('open');
+  manageModal.classList.add('open');
+  renderListing();
+};
+
+// ─── Card Helpers ────────────────────────────────────────────────────────────
+function getOrCreateCard(pid, modelId){
+  let card = Array.from(grid.children).find(el => el.dataset.pid === pid && el.dataset.model === modelId);
+  if(!card){
+    card = document.createElement('div');
+    card.dataset.pid = pid;
+    card.dataset.model = modelId;
+    grid.appendChild(card);
+  }
+  return card;
+}
+
+// ─── Run One Model ───────────────────────────────────────────────────────────
+async function runOne(provider, modelId, rawPrompt, forceProxy = false){
+  const card = getOrCreateCard(provider.id, modelId);
+  const encLabel = ENCODERS[activeEncoding]?.label || 'Plain';
+  const isEncoded = activeEncoding !== 'none';
+
+  card.className = 'result loading' + (isEncoded ? ' encoded' : '');
+  card.innerHTML = `
+    <div class="result-head">
+      <div class="who"><span class="model-id">${modelId}</span><span class="prov">${provider.name}</span></div>
+      <div class="result-head-right">
+        <span class="metric"><span class="dot"></span>running</span>
+      </div>
+    </div>
+    <div class="result-body">Waiting for response…</div>`;
+
+  const start = performance.now();
+
+  // Encode the prompt if Parseltongue is active
+  const encodedPrompt = isEncoded ? ENCODERS[activeEncoding].fn(rawPrompt) : rawPrompt;
+
+  // Built-in Demo
+  if(provider.baseUrl.startsWith('builtin') || provider.id === 'builtin-demo'){
+    setTimeout(() => {
+      const elapsed = Math.round(performance.now() - start);
+      const text = runBuiltinDemo(modelId, rawPrompt, activeEncoding);
+      card.className = 'result' + (isEncoded ? ' encoded' : '');
+      card.querySelector('.result-head-right').innerHTML = `<span class="metric fast">${elapsed} ms (demo)</span>`;
+      const bodyEl = card.querySelector('.result-body');
+      if(isEncoded){ bodyEl.innerHTML = `<span class="encoding-tag">🔐 ${encLabel} encoded</span>\n`; bodyEl.appendChild(document.createTextNode(text)); }
+      else { bodyEl.textContent = text; }
+    }, 250);
+    return;
+  }
+
+  // Missing API key check
+  const isLocal = provider.baseUrl.includes('localhost') || provider.baseUrl.includes('127.0.0.1');
+  if(!isLocal && !provider.apiKey){
+    card.className = 'result warning';
+    card.querySelector('.result-head-right').innerHTML = `<span class="metric">key missing</span>`;
+    card.querySelector('.result-body').innerHTML = `
+      <div style="margin-bottom:8px"><strong>⚠️ API Key Required for ${provider.name}</strong></div>
+      <div style="color:var(--muted);font-size:12px;margin-bottom:12px">Click Manage providers → edit to paste your API key.</div>
+      <button class="btn btn-sm primary edit-key-btn">⚙️ Configure Key</button>`;
+    card.querySelector('.edit-key-btn').onclick = () => openEdit(provider.id);
+    return;
+  }
+
+  try{
+    const headers = { 'Content-Type': 'application/json' };
+    if(provider.apiKey) headers['Authorization'] = `Bearer ${provider.apiKey}`;
+
+    const baseUrl = normalizeBaseUrl(provider.baseUrl);
+    let fetchUrl = `${baseUrl}/chat/completions`;
+    if(baseUrl.includes('generativelanguage.googleapis.com') && provider.apiKey){
+      fetchUrl += `?key=${encodeURIComponent(provider.apiKey)}`;
+    }
+    if(forceProxy) fetchUrl = `https://corsproxy.io/?` + encodeURIComponent(fetchUrl);
+
+    const res = await fetch(fetchUrl, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ model: modelId, messages: [{ role: 'user', content: encodedPrompt }] })
+    });
+
+    const elapsed = Math.round(performance.now() - start);
+    const data = await res.json();
+
+    if(!res.ok) throw new Error(data.error?.message || `HTTP ${res.status}: ${data.error?.status || 'API Error'}`);
+    const text = data.choices?.[0]?.message?.content ?? '(empty response)';
+
+    card.className = 'result' + (isEncoded ? ' encoded' : '');
+    card.querySelector('.result-head-right').innerHTML = `
+      <span class="metric ${isEncoded ? 'encoded' : (forceProxy ? 'proxy' : 'fast')}">${elapsed} ms${isEncoded ? ` · 🔐 ${encLabel}` : ''}</span>`;
+
+    const bodyEl = card.querySelector('.result-body');
+    if(isEncoded){
+      bodyEl.innerHTML = '';
+      const tag = document.createElement('span');
+      tag.className = 'encoding-tag';
+      tag.textContent = `🔐 Prompt sent as: ${encLabel}`;
+      bodyEl.appendChild(tag);
+      bodyEl.appendChild(document.createTextNode('\n' + text));
+    } else {
+      bodyEl.textContent = text;
+    }
+
+  }catch(err){
+    card.className = 'result error';
+    card.querySelector('.result-head-right').innerHTML = `<span class="metric">failed</span>`;
+    const bodyEl = card.querySelector('.result-body');
+    bodyEl.innerHTML = '';
+
+    const errTitle = document.createElement('div');
+    errTitle.style.cssText = 'font-weight:600;margin-bottom:6px';
+    const errDetails = document.createElement('div');
+    errDetails.style.cssText = 'font-size:12px;color:var(--muted);margin-bottom:10px';
+
+    if(err.name === 'TypeError' && err.message.includes('fetch')){
+      errTitle.textContent = isLocal ? `🔴 Local Server Offline` : `🔴 Network / CORS Blocked`;
+      errDetails.textContent = isLocal
+        ? 'Make sure LM Studio or Ollama is running with CORS enabled.'
+        : 'The browser could not reach the endpoint. Check your API key and network.';
+      bodyEl.appendChild(errTitle);
+      bodyEl.appendChild(errDetails);
+      if(!isLocal && !forceProxy){
+        const retryBtn = document.createElement('button');
+        retryBtn.className = 'btn btn-sm primary';
+        retryBtn.textContent = '⚡ Retry with CORS Bypass';
+        retryBtn.onclick = () => runOne(provider, modelId, rawPrompt, true);
+        bodyEl.appendChild(retryBtn);
+      }
+    } else {
+      errTitle.textContent = 'API Error';
+      errDetails.textContent = err.message || 'Request failed.';
+      bodyEl.appendChild(errTitle);
+      bodyEl.appendChild(errDetails);
+    }
+  }
+}
+
+// ─── Run All ─────────────────────────────────────────────────────────────────
+runBtn.onclick = async () => {
+  const rawPrompt = promptEl.value.trim();
+  const targets = selectedTargets();
+  if(!rawPrompt){ promptEl.focus(); return; }
+  if(!targets.length) return;
+
+  empty.style.display = 'none';
+  grid.innerHTML = '';
+  runBtn.disabled = true;
+  runBtn.textContent = 'Running…';
+
+  try {
+    await Promise.all(targets.map(t => {
+      const idx = t.indexOf('::');
+      const pid = t.substring(0, idx);
+      const modelId = t.substring(idx + 2);
+      const provider = providers.find(p => p.id === pid);
+      if(provider) return runOne(provider, modelId, rawPrompt);
+    }));
+  } finally {
+    runBtn.disabled = false;
+    runBtn.textContent = 'Run comparison';
+  }
+};
+
+renderModelPicker();
+</script>
+</body>
+</html>
